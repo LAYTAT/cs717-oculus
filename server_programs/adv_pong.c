@@ -176,6 +176,11 @@ int main(int argc, char *argv[])
     fd_set mask, dummy_mask, temp_mask;
     char mess[MAX_BYTES];
     char temp[1024];
+
+    if(argc != 2){
+        fprintf(stderr, "please specify the port to listen");
+    }
+
     const char * MYPORT = argv[1];
     int rv;
     struct addrinfo hints, *servinfo, *p;
