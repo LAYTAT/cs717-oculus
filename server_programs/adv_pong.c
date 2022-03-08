@@ -240,6 +240,10 @@ int main(int argc, char *argv[])
         bytes = recvfrom(sk, mess, sizeof(mess), 0, (struct sockaddr *)&from_addr, &from_len);
         mess[bytes] = 0;
         format_addr(temp, from_addr);
+        if(bytes == -1) {
+            perror("recvfrom");
+            exit(1);
+        }
         printf("Received %d byte message from %s\n", bytes, temp);
 
         // Respond to Unity server
