@@ -193,8 +193,8 @@ int main(int argc, char *argv[])
             continue;
         }
 
-        if (bind(sockfd, p->ai_addr, p->ai_addrlen) == -1) {
-            close(sockfd);
+        if (bind(sk, p->ai_addr, p->ai_addrlen) == -1) {
+            close(sk);
             perror("adv_pong: bind for recv socket failed\n");
             continue;
         } else {
