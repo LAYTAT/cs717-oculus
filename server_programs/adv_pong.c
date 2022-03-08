@@ -176,6 +176,7 @@ int main(int argc, char *argv[])
     fd_set mask, dummy_mask, temp_mask;
     char mess[MAX_BYTES];
     char temp[1024];
+    struct sockaddr_in oculus_addr;
 
     if(argc != 2){
         fprintf(stderr, "please specify the port to listen");
@@ -226,6 +227,11 @@ int main(int argc, char *argv[])
     FD_ZERO(&mask);
     FD_ZERO(&dummy_mask);
     FD_SET(sk, &mask);
+    printf("Awaiting messages from Oculus...\n");
+    char addr_str_buff[256];
+    memset(addr_str_buff, 0, 256);
+    char response_buff[1024];
+    memset(response_buff, 0, 1024);
 
     struct RainPacket packet;
     memset(&packet, 0, sizeof(struct RainPacket));
@@ -236,36 +242,35 @@ int main(int argc, char *argv[])
     packet.z = sin(t * 2 * M_PI);
     packet.y = sin(t * 2 * M_PI / 4) + 2;
 
-    printf("Awaiting ping message...\n");
     for (;;)
     {
+        // Receive packet
         temp_mask = mask;
         num = select(FD_SETSIZE, &temp_mask, &dummy_mask, &dummy_mask, NULL);
+        bytes = recvfrom(sk, mess, sizeof(mess), 0, (struct sockaddr *)&remote_addr, &remote_len);
+        mess[bytes] = 0;  // Ad null-terminator to string (soemtimes this is redundant)
 
-        bytes = recvfrom(sk, mess, sizeof(mess), 0, (struct sockaddr *)&from_addr, &from_len);
-        mess[bytes] = 0;
-        format_addr(temp, from_addr);
-        if(bytes == -1) {
-            perror("recvfrom");
-            exit(1);
+        // Display that we have received message
+        format_addr(addr_str_buff, remote_addr);
+        printf("rain1 received %d byte message from %s: %s", bytes, addr_str_buff, mess);
+        if (bytes && mess[bytes - 1] != '\n')
+            printf("\n");
+
+        // Check if this is oculus server
+        if (strcmp(mess, "OCULUS") == 0) {  // FIXME
+            memcpy(&oculus_addr, &remote_addr, sizeof(struct sockaddr));
         }
-        printf("Received %d byte message from %s\n", bytes, temp);
 
-        // Respond to Unity server
-        from_addr.sin_port = htons(8051);
-        sprintf(packet.mess, "rain1 received message from %s\n", temp);
-
-        char temp2[1024];
-        memset(temp2, 0, 1024);
-        sprintf(temp2, "%0.3f %0.3f %0.3f %s\n", packet.x, packet.y, packet.z, temp);
-        sendto(sk, temp2, strlen(temp2) + 1, 0, (struct sockaddr*)&from_addr, sizeof(from_addr));
+        // Format response
+        sprintf(response_buff, "%0.3f %0.3f %0.3f %s\n", packet.x, packet.y, packet.z, addr_str_buff);
+        sendto(sk, response_buff, strlen(response_buff) + 1, 0, (struct sockaddr*)&oculus_addr, sizeof(oculus_addr));
 
         // Print address we are responding to
-        format_addr(temp, from_addr);
-        printf("Responded to %s\n", temp);
+        format_addr(addr_str_buff, oculus_addr);
+        printf("Responded to %s\n", addr_str_buff);
 
         // Update sphere position
-        t += 0.1;
+        t += 0.05;
         packet.flag = 1;
         packet.x = r * cos(t * 2 * M_PI);
         packet.z = r * sin(t * 2 * M_PI);
