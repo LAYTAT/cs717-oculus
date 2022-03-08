@@ -15,9 +15,6 @@
 #include "spu_alarm.h"
 #include "math.h"
 
-#define SPINES_PORT 8100
-#define RECV_PORT 4577
-#define RAIN_1_IP ((128 << 24) + (220 << 16) + (221 << 8) + (21))
 #define MAX_BYTES 100000
 
 void format_addr(char *buf, struct sockaddr_in addr);
@@ -72,7 +69,7 @@ int main(int argc, char *argv[])
             perror("adv_pong: bind for recv socket failed\n");
             continue;
         } else {
-            printf("Receiving on port: %d\n", RECV_PORT);
+            printf("Receiving on port: %d\n", MYPORT);
         }
 
         break;

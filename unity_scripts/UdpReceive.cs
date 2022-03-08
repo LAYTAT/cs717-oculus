@@ -38,6 +38,7 @@ public class UdpReceive : MonoBehaviour
     Thread receiveThread;
     UdpClient client;
     GameObject sphere;
+    public Config config;
     public int port; // define > init
     public string lastReceivedUDPPacket = "";
     public string allReceivedUDPPackets = ""; // clean up this from time to time!
@@ -118,7 +119,7 @@ public class UdpReceive : MonoBehaviour
         client = new UdpClient(port); // port to listen on
 
         byte[] temp = Encoding.UTF8.GetBytes("OCULUS");
-        IPEndPoint remoteEndPoint = new IPEndPoint(IPAddress.Parse("128.220.221.21"), 4577);
+        IPEndPoint remoteEndPoint = new IPEndPoint(IPAddress.Parse(config.ip_address), config.port);
         client.Send(temp, temp.Length, remoteEndPoint); // first packet to override weird 0.0.0.0 IP address packet 
         client.Send(temp, temp.Length, remoteEndPoint);
 
