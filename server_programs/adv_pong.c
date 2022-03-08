@@ -1,101 +1,3 @@
-/*
-#include <stdio.h>
-#include <stdlib.h>
-#include <unistd.h>
-#include <errno.h>
-#include <string.h>
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <netinet/in.h>
-#include <arpa/inet.h>
-#include <netdb.h>
-
-#define MAXBUFLEN 100
-
-// get sockaddr, IPv4 or IPv6:
-void *get_in_addr(struct sockaddr *sa)
-{
-    if (sa->sa_family == AF_INET) {
-        return &(((struct sockaddr_in*)sa)->sin_addr);
-    }
-
-    return &(((struct sockaddr_in6*)sa)->sin6_addr);
-}
-
-int main(int argc, char *argv[])
-{
-    int sockfd;
-    struct addrinfo hints, *servinfo, *p;
-    int rv;
-    int numbytes;
-    struct sockaddr_storage their_addr;
-    char buf[MAXBUFLEN];
-    socklen_t addr_len;
-    char s[INET6_ADDRSTRLEN];
-
-    memset(&hints, 0, sizeof hints);
-    hints.ai_family = AF_INET; // set to AF_INET to use IPv4
-    hints.ai_socktype = SOCK_DGRAM;
-    hints.ai_flags = AI_PASSIVE; // use my IP
-
-    if(argc != 2){
-        fprintf(stderr, "please specify the port to listen");
-    }
-    
-    const char * MYPORT = argv[1];
-
-    if ((rv = getaddrinfo(NULL, MYPORT, &hints, &servinfo)) != 0) {
-        fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(rv));
-        return 1;
-    }
-
-    // loop through all the results and bind to the first we can
-    for(p = servinfo; p != NULL; p = p->ai_next) {
-        if ((sockfd = socket(p->ai_family, p->ai_socktype,
-                             p->ai_protocol)) == -1) {
-            perror("listener: socket");
-            continue;
-        }
-
-        if (bind(sockfd, p->ai_addr, p->ai_addrlen) == -1) {
-            close(sockfd);
-            perror("listener: bind");
-            continue;
-        }
-
-        break;
-    }
-
-    if (p == NULL) {
-        fprintf(stderr, "listener: failed to bind socket\n");
-        return 2;
-    }
-
-    freeaddrinfo(servinfo);
-
-    fprintf( stderr, "listener: waiting to recvfrom at port %s ......", MYPORT);
-
-    addr_len = sizeof their_addr;
-    if ((numbytes = recvfrom(sockfd, buf, MAXBUFLEN-1 , 0,
-                             (struct sockaddr *)&their_addr, &addr_len)) == -1) {
-        perror("recvfrom");
-        exit(1);
-    }
-    fprintf( stderr, "listener: got packet from %s\n",
-             inet_ntop(their_addr.ss_family,
-                       get_in_addr((struct sockaddr *)&their_addr),
-                       s, sizeof s));
-    fprintf( stderr, "listener: packet is %d bytes long\n", numbytes);
-    buf[numbytes] = '\0';
-    fprintf( stderr, "listener: packet contains \"%s\"\n", buf);
-
-    close(sockfd);
-
-    return 0;
-}
-*/
-
-
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
@@ -115,46 +17,12 @@ int main(int argc, char *argv[])
 
 #define SPINES_PORT 8100
 #define RECV_PORT 4577
+#define RAIN_1_IP ((128 << 24) + (220 << 16) + (221 << 8) + (21))
 #define MAX_BYTES 100000
 
-void format_addr(char *buf, struct sockaddr_in addr)
-{
-    int ip = addr.sin_addr.s_addr;
-    int port = ntohs(addr.sin_port);
-    unsigned char bytes[4];
-    bytes[0] = ip & 0xFF;
-    bytes[1] = (ip >> 8) & 0xFF;
-    bytes[2] = (ip >> 16) & 0xFF;
-    bytes[3] = (ip >> 24) & 0xFF;
-    sprintf(buf, "%d.%d.%d.%d:%d", bytes[3], bytes[2], bytes[1], bytes[0], port);
-}
-
-void format_ip(char *buf, int ip)
-{
-    unsigned char bytes[4];
-    bytes[0] = ip & 0xFF;
-    bytes[1] = (ip >> 8) & 0xFF;
-    bytes[2] = (ip >> 16) & 0xFF;
-    bytes[3] = (ip >> 24) & 0xFF;
-    sprintf(buf, "%d.%d.%d.%d", bytes[3], bytes[2], bytes[1], bytes[0]);
-}
-
-void print_local_addr()
-{
-    struct hostent *h_tmp;
-    char local_name[256];
-    char temp[256];
-    int local_ip;
-
-    gethostname(local_name, sizeof(local_name)); // find the host name
-    h_tmp = gethostbyname(local_name);           // find host information
-    memcpy(&local_ip, h_tmp->h_addr, sizeof(local_ip));
-    local_ip = ntohl(local_ip);
-    format_ip(temp, local_ip);
-    printf("Local Host Name: %s (%s)\n", local_name, temp);
-}
-
-void print_usage(void);
+void format_addr(char *buf, struct sockaddr_in addr);
+void format_ip(char *buf, int ip);
+void print_local_addr();
 
 struct RainPacket {
     int flag;
@@ -167,17 +35,12 @@ struct RainPacket {
 int main(int argc, char *argv[])
 {
     int sk;
-    int num;
-    int bytes;
-    struct sockaddr_in name;
-    struct sockaddr_in from_addr;
-    int from_ip, from_port;
-    socklen_t from_len;
+    struct sockaddr_in local_addr, oculus_addr, remote_addr;
+    socklen_t oculus_len, remote_len;
     fd_set mask, dummy_mask, temp_mask;
     char mess[MAX_BYTES];
-    char temp[1024];
-    struct sockaddr_in oculus_addr;
 
+    // Verify command line invocation
     if(argc != 2){
         fprintf(stderr, "please specify the port to listen");
     }
@@ -200,7 +63,7 @@ int main(int argc, char *argv[])
     for(p = servinfo; p != NULL; p = p->ai_next) {
         if ((sk = socket(p->ai_family, p->ai_socktype,
                              p->ai_protocol)) == -1) {
-            perror("listener: socket");
+            perror("adv_pong: socket");
             continue;
         }
 
@@ -222,8 +85,21 @@ int main(int argc, char *argv[])
 
     freeaddrinfo(servinfo);
 
+    // Print local address (to verify we are where we think we are)
     print_local_addr();
 
+    // packet should contain all data meant to be sent to oculus
+    // This will be deprecated eventually
+    struct RainPacket packet;
+    memset(&packet, 0, sizeof(struct RainPacket));
+    double t = 0;
+    double r = 4;
+    packet.flag = 1;
+    packet.x = r * cos(t * 2 * M_PI);
+    packet.z = r * sin(t * 2 * M_PI);
+    packet.y = sin(t * 2 * M_PI / 16) + 2;
+    
+    // Tbh, I still don't know how masks work
     FD_ZERO(&mask);
     FD_ZERO(&dummy_mask);
     FD_SET(sk, &mask);
@@ -232,18 +108,9 @@ int main(int argc, char *argv[])
     memset(addr_str_buff, 0, 256);
     char response_buff[1024];
     memset(response_buff, 0, 1024);
-
-    struct RainPacket packet;
-    memset(&packet, 0, sizeof(struct RainPacket));
-    double t = 0;
-    double r = 1;
-    packet.flag = 1;
-    packet.x = cos(t * 2 * M_PI);
-    packet.z = sin(t * 2 * M_PI);
-    packet.y = sin(t * 2 * M_PI / 4) + 2;
-
+    int num, bytes;
     for (;;)
-    {
+    {   
         // Receive packet
         temp_mask = mask;
         num = select(FD_SETSIZE, &temp_mask, &dummy_mask, &dummy_mask, NULL);
@@ -278,7 +145,34 @@ int main(int argc, char *argv[])
     }
 }
 
-void print_usage(void)
+void format_addr(char *buf, struct sockaddr_in addr)
 {
-    printf("Usage: ./adv_pong\n");
+    int ip = addr.sin_addr.s_addr;
+    int port = ntohs(addr.sin_port);
+    unsigned char bytes[4];
+    bytes[0] = ip & 0xFF;
+    bytes[1] = (ip >> 8) & 0xFF;
+    bytes[2] = (ip >> 16) & 0xFF;
+    bytes[3] = (ip >> 24) & 0xFF;
+    sprintf(buf, "%d.%d.%d.%d:%d", bytes[3], bytes[2], bytes[1], bytes[0], port);
+}
+
+void format_ip(char* buf, int ip)
+{
+    sprintf(buf, "%d.%d.%d.%d", (ip >> 24) & 0xFF, (ip >> 16) & 0xFF, (ip >> 8) & 0xFF, ip & 0xFF);
+}
+
+void print_local_addr()
+{
+    struct hostent *h_tmp;
+    char local_name[256];
+    char temp[256];
+    int local_ip;
+
+    gethostname(local_name, sizeof(local_name)); // find the host name
+    h_tmp = gethostbyname(local_name);           // find host information
+    memcpy(&local_ip, h_tmp->h_addr, sizeof(local_ip));
+    local_ip = ntohl(local_ip);
+    format_ip(temp, local_ip);
+    printf("Local Host Name: %s (%s)\n", local_name, temp);
 }
